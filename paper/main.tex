@@ -1,18 +1,23 @@
-\documentclass[titlepage]{ltjsarticle}
-\usepackage{luatexja}%少なくとも\mojiparlineの単位\zwの定義に必要
-\usepackage{amsmath,amssymb,empheq,bm}%数式
-\usepackage{hyperref}
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{siunitx}
+\usepackage{caption}
+\usepackage{subcaption}
 
-%書くべきページ数，11日後に64pとそこそこになる
-%0 + 1 * https://lzpel.github.io/calendar/passed?date=2025-10-17
-%\{subsec:\w+\}章
+\title{
+Stress-Field State Estimation and Stress-Constrained Whole-Body Control for Contact-Rich Manipulation
+}
 
-% 図表のサイズはgravit-facebookが12cm，横並びは8cmで統一
-
-\title{Neural Stress-Field Estimation for Stress-Constrained Whole-Body Control}
-\author{Satoshi Misumi}
-\date{\today}
+\author{
+Satoshi Misumi, et al.\\
+Sony Interactive Entertainment
+{\tt\small satoshi.misumi@sony.com}
+}
 
 \begin{document}
 \maketitle
@@ -97,12 +102,12 @@ Peak von Mises stress, stress exceed time, slip rate, success rate, energy, and 
 \centering
 \caption{Quantitative Results (Mean ± SD)}
 \begin{tabular}{lcccc}
-
+\toprule
 Task & Method & $\sigma_{vM}^{max}$ & Slip (\%) & Succ. (\%)\\
-
+\midrule
 Wall Push & Baseline & 125±10 & 11.2 & 84.0\\
           & Ours & 82±8 & 6.4 & 94.7\\
-
+\bottomrule
 \end{tabular}
 \end{table}
 
