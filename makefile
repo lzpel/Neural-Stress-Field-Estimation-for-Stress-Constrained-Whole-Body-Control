@@ -1,13 +1,17 @@
+MAKE_RECURSIVE_DIRS := paper_my_stress paper_copy_attention
 run:
 	cd overleaf-toolkit && bin/up
-generate:
-	MSYS_NO_PATHCONV=1 docker run --rm -it -v $(shell realpath paper):/out -w /out -e OUT=main paperist/alpine-texlive-ja bash -c "$${paper}"
-define paper
-sed -i -e "/^.*\\doi.*/d;" $${OUT}.bib
-sed -i -e "s/、/，/g;s/。/．/g" $${OUT}.tex
-lualatex $${OUT}
-upbibtex $${OUT}
-lualatex $${OUT}
-lualatex $${OUT}
+generate: generate_paper
+	bash -c "$${MAKE_RECURSIVE}"
+generate_paper:
+	find . -maxdepth 1 -type d -name 'paper*' | tail +2 | xargs -IX sh -c "cp -r paper/. X/"
+define MAKE_RECURSIVE
+if [ -n "$${MAKE_RECURSIVE_PARALLEL}" ]; then
+	trap 'kill 0' EXIT INT TERM
+	time printf '%s\n' $(MAKE_RECURSIVE_DIRS) | xargs -P0 -IX sh -c 'cd X && $(MAKE) $@'
+	wait
+else
+	time printf '%s\n' $(MAKE_RECURSIVE_DIRS) | xargs -IX sh -c 'cd X && $(MAKE) $@'
+fi
 endef
 export
