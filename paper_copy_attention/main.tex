@@ -86,19 +86,104 @@
 
 
 \begin{abstract}
-  The abstract paragraph should be indented \nicefrac{1}{2}~inch (3~picas) on
-  both the left- and right-hand margins. Use 10~point type, with a vertical
-  spacing (leading) of 11~points.  The word \textbf{Abstract} must be centered,
-  bold, and in point size 12. Two line spaces precede the abstract. The abstract
-  must be limited to one paragraph.
+  % 支配的なシーケンス変換モデルは、エンコーダとデコーダを含む複雑な再帰型または畳み込みニューラルネットワークに基づいている。
+  The dominant sequence transduction models are based on comples recurrent or convolutional neural networks that include an encoder and decoder.
+  % 最も優れた性能を発揮するモデルは、エンコーダとデコーダを注意機構を通じて接続している。
+  The best performing models also connect the encoder and decoder through an attention mechanism.
+  % 我々は、再帰や畳み込みを完全に排除し、注意機構のみに基づく新しいシンプルなネットワークアーキテクチャ「トランスフォーマー」を提案する。
+  We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.
+  % 二つの機械翻訳タスクにおける実験は、これらのモデルが品質において優れていると同時に、並列化が容易で、トレーニングに要する時間が大幅に少ないことを示している。
+  Experiments on two machine translation tasks show these models to be superior in quality while beings more parallelizable and requiing significantly less time to train.
+  % 私たちのモデルは、WMT 2014 英独翻訳タスクにおいて BLEU スコア 28.4 を達成し、アンサンブルモデルを含む既存の最良結果を 2 BLEU 以上上回った。
+  Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU.
+  % WMT 2014 英仏翻訳タスクでは、私たちのモデルは BLEU スコア 41.8 という新たな単一モデルの最先端記録を樹立した。これは 8 枚の GPU で 3.5 日間 の学習によって達成されたものであり、文献中の最良モデルに比べて ごく一部の学習コスト である。
+  On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature.% 文献中の最良モデル
+  % 私たちは、Transformer が他のタスクにもよく汎化することを示した。具体的には、豊富な学習データと限られた学習データの両方の条件で、英語構文解析（constituency parsing） に成功裏に適用している。
+  We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with larger and limited training data.
 \end{abstract}
 
 
-\section{Submission of papers to NeurIPS 2024}
+\section{Introduction}
+% 再帰型ニューラルネットワーク（RNN）、特に長短期記憶（LSTM）\cite{13} およびゲート付き再帰ネットワーク（GRU）\cite{7} は、系列モデリングや写像（transduction）問題──たとえば言語モデルや機械翻訳\cite{35,2,5}──における最先端の手法として確立されてきた。
+Recurrent neural networks, long short-term memory\cite{13} and gated recurrent neural networks \cite{7}  in particular, have been firmly established as state of the art approaches in sequence modeling and transduction problems such as language modeling and machine translation\cite{35,2,5}.
+% それ以来、多くの研究が、再帰型言語モデルおよびエンコーダ–デコーダ構造\cite{38,24,15} の限界をさらに押し広げてきた。
+Numerous efforts have since continued to push the boundaries of recurrent language models and encoder-decoder architectures \cite{38,24,15}.
 
+% 再帰モデルは一般に、入力および出力系列の各シンボル位置に沿って計算を分解（factor） する構造を持つ。
+Recurrent models typically factor computation along the symbol positions of the input and output sequences.
+% 計算時間のステップと位置を対応づけることで、彼ら（再帰モデル）は、前の隠れ状態 $h_{t-1}$ と位置 $t$ の入力を関数として、隠れ状態列 $h_t$ を生成する。
+Aligning the positions to steps in computation time, they generate a sequence of hidden states $h_t$ as a function of the previous hidden state $h_{t-1}$ and the input for position $t$.
+% このような本質的に逐次的（sequential）な性質のため、1つの訓練サンプル内での並列化は不可能である。この制約は系列が長くなるほど深刻になり、メモリ制限によって複数サンプル間のバッチ処理も制約を受ける。
+This inherently sequential nature precludes parallelization within training examples, which becomes critical at longer sequence lengths, as memory constraints limit batching across examples.
+% 最近の研究では、分解（factorization）の工夫\cite{21} や条件付き計算（conditional computation）\cite{32} を通じて、計算効率を大幅に改善する成果が得られている。さらに後者（条件付き計算）の場合には、モデル性能の向上も報告されている。
+Recent work has achieved significant improvements in computational efficiency through factorization tricks\cite{21} and conditional computation\cite{32}, while also improving model performance in case of the latter.
+% 順次計算に内在する基本的な制約は、しかしながら依然として残っている。
+The fundamental constraint of sequential computation, however, remains.
 
-Please read the instructions below carefully and follow them faithfully.
+% アテンション機構は、入力や出力系列内での距離に依存しない依存関係のモデリングを可能にすることで、さまざまなタスクにおける強力な系列モデリングおよび変換モデルの中核的要素となってきた\cite{2,9}。
+Attention mechanisms have become an integral part of compelling sequence modeling and transduction models in various tasks, allowing modelling of dependencies without regard to their distance in the input or output sequences\cite{2,9}.
+% しかしながら、わずかな例外\cite{27}を除き、このようなアテンション機構は再帰型ネットワークと併用されている。
+In all but a few cases\cite{27}, however, such attention mechinsms are used in conjunction with recurrent network.
+% 本研究では、再帰を排し、入力と出力の間の大域的な依存関係を完全にアテンション機構のみに基づいて捉えるモデルアーキテクチャ「Transformer」を提案する。
+In this work we propose the Transformer, a model architecture eschewing recurrence and instead relying entirely on  an attention mechanism to draw global dependencies between input and output.
+% Transformer は著しく高い並列化を可能にし、わずか 8 台の P100 GPU で 12 時間の学習後に翻訳品質で新たな最先端性能を達成できる。
+The Transformer allows for significantly more parallelization and can reach a new state othe the art in translation quality after being trained for as little as twelve hours on eight P100 GPUs.
 
+\section{Model Architecture}
+% ほとんどの競争力のあるニューラル系列変換モデルは、エンコーダ-デコーダ構造を持つ \cite{5,2,35}。
+Most competitive neural sequence transduction models have an encoder-decoder structure\cite{5,2,35}.
+% ここで、エンコーダは入力記号列 $\left(x_1,\dots,x_n\right)$ を、連続的な表現の列 $\mathbf{z}=\left(z_1,\dots,z_n\right)$ へ写像する。
+Here, te encoder maps input sequence of symbol representations $\left(x_1,\dots,x_n\right)$  to a sequence of continuous representations $\mathbf{z}=\left(z_1,\dots,z_n\right)$.
+% 与えられた $\mathbf{z}$ に基づいて、デコーダは出力記号列 $\left(y_1,\dots,y_m\right)$ を1要素ずつ生成する。
+Given $\mathbf{z}$., the decoder then generates an output sequence $\left(y_1,\dots,y_m\right)$of symbols one element at a time.
+% 各ステップにおいて、このモデルは自己回帰的（auto-regressive）であり、次の要素を生成する際に直前までに生成した記号列を追加入力として利用する \cite{10}。
+At each step the model is auto-regressive\cite{10}, consuming the previously generated symbols as additional input when generating the next.
+% Transformer はこの全体的なアーキテクチャに従い、**スタックされた自己注意機構（self-attention）と点ごとの全結合層（point-wise fully connected layers）**を、エンコーダとデコーダの両方に用いている。これらはそれぞれ 図1の左側と右側 に示されている。
+The Transformer follows this overall architecture using stacked self-attention and point-wise, fully connected layers for both the encoder and decoder whoen in the left and right halves of Figure 1, respectively.
+\subsection{Encoder and Decoder Stacks}
+% エンコーダは、$N=6$ 個の同一構造の層から構成されるスタックである。各層は2つのサブレイヤーを持ち、1つ目はマルチヘッド自己注意機構、2つ目は位置ごとに独立した全結合フィードフォワードネットワークである。
+\paragraph{Encoder:}The encoder is composed of a stack of $N=6$ identical layers. Each layer has two sub-layers. The first is a multi-head self-attention mechanism, and the second is simple, position-wise fully connected feed-forward network.
+% 各サブレイヤーの出力のまわりに残差接続~\cite{11} を施し、その後に層正規化~\cite{1} を適用する。
+We employ a residual connection\cite{11} around each of the two sublayers, followed by layer normalization\cite{1}.
+% すなわち、各サブレイヤーの出力は$\mathrm{LayerNorm}!\left(x + \mathrm{Sublayer}(x)\right)$の形であり、ここで $\mathrm{Sublayer}(x)$ はそのサブレイヤー自体が実装する関数を表す。
+That is, the output of each sub-layer is LayerNorm$\left(x+\mathrm{Sublayer}\left(x\right)\right)$, while Sublayer$\mathrm(Sublayer)\left(x\right)$ is the function implemented by the sub-layer itself.
+% これらの残差接続を容易にするために、モデル内のすべてのサブレイヤーおよび埋め込み層は、出力次元 $d_{\mathrm{model}} = 512$ を持つ。
+To facilitate these residual connections, all sub-layers in the model, as well as the embedding layers, produce outputs of dimension $d_\mathrm{model}=512$.
+
+% デコーダも同様に、$N=6$ 個の同一構造の層から構成される。ただし各層には、エンコーダ層にある2つのサブレイヤーに加えて、第3のサブレイヤーが追加されており、これはエンコーダスタックの出力に対してマルチヘッドアテンションを行う。
+\paragraph{Decoder:} The decoder is also composed of a stack of $N=6$ identical layers. In addition to the two sub-layers in each encoder layer, the decoder inserts a third sub-layer, which performs multi-head attention over the output of the encoder stack.
+% エンコーダと同様に、各サブレイヤーの出力には残差接続を施し、その後に層正規化を適用する。
+Similar to the encoder, we employ residual connections around each of sub-layers, followed by layer normalization.
+% さらに、デコーダスタック内の自己注意サブレイヤーを修正し、ある位置がその後の位置に注意を向けることを防ぐ。
+We also modify the self-attention sub layer in the decoder stack to prevent positions from attending to subsequent positions.
+% このマスキングと、出力埋め込みが1ステップ分オフセットされているという事実を組み合わせることで、位置 $i$ の予測が位置 $i$ より前の既知の出力のみに依存することが保証される。
+This masking, combined with fact that the output embeddings are offset by one position, ensures that the predictions for position $i$ can depend only on the known outpus at positions less than $i$.
+
+% Q. なんで512なら容易(facilitated)なのか
+% A. Transformer では、自己注意層（Self-Attention）フィードフォワード層（Feed-Forward Network, FFN）埋め込み層（Embedding）など、いろいろなサブレイヤーがありますが、これらの出力を次々に残差でつなぐため、出力ベクトルの次元をすべて統一しておく必要があります。つまり「512」は“揃えるための共通の基準"。512 でなければならない理由は理論的にはありませんが経験的に選ばれました。
+
+% Q.
+
+% 写経ミスは一行ずつ修正していたら時間が足りない、原典と写本の印刷物を手元に置きながらChatGPTに全文を訂正させることで画面不足を解決する。
+\section{Conclusion}
+
+% 本研究では、Transformer を提案した。これは完全にアテンションに基づく初の系列変換モデルであり、エンコーダ–デコーダ構造で一般的に用いられる再帰層を、多頭自己注意（multi-headed self-attention）に置き換えている。
+In this work, we presented the Transformer, the first sequence transduction model based entirely on attention, replacing the recurrent layers most commonly used in encoder-decoder architectures with multi-headed self attention.
+
+% 翻訳タスクにおいて、Transformer は再帰層や畳み込み層に基づくアーキテクチャと比べて、著しく高速に学習可能である。
+For translation tasks, the Transformer can be trained significantly faster than architectures based on recurrent or convolutional layers. 
+% WMT 2014 の英独および英仏翻訳タスクの両方で、我々のモデルは新たな最先端性能（state of the art）を達成した。特に前者のタスクにおいては、既報のアンサンブルモデルすら上回っている。
+On both WMT 2014 Englisht to German and WMT 2014 English to French translation tasks, we achive a new state of the art. In the former task our best model outperforms evan all previously reported ensembles.
+
+% 我々はアテンションベースモデルの将来に大きな期待を寄せており、他のタスクへの応用を計画している。
+We are exited about the future of attention-based models and plan to apply them to other tasks.
+% また、テキスト以外の入力・出力モダリティを扱う課題への拡張や、大規模な入力・出力（画像・音声・映像など）を効率的に処理するための局所的・制限付きアテンション機構の検討も進めている。
+We plan to extend the Transformer to problems involving input and output modalities other than text and to investigate local, restricted attention mechanisms to efficiently handle large inputs and outputs such as images, audio and video.
+% 生成をより非逐次的に行うことも、我々の研究目標のひとつである。
+Making generation less sequential is another research goals of ours.
+
+% 我々が学習および評価に使用したコードは、\url{https://github.com/tensorflow/tensor2tensor}にて公開している。
+The code we used to train and evaluate our models is availalbe at \url{https://github.com/tensorflow/tensor2tensor}
 
 \subsection{Style}
 
