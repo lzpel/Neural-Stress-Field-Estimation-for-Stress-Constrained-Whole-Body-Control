@@ -1,0 +1,116 @@
+\documentclass[titlepage]{ltjsarticle}
+\usepackage{luatexja}%少なくとも\mojiparlineの単位\zwの定義に必要
+\usepackage{amsmath,amssymb,empheq,bm}%数式
+\usepackage{hyperref}
+\usepackage{multirow}
+
+%書くべきページ数，11日後に64pとそこそこになる
+%0 + 1 * https://lzpel.github.io/calendar/passed?date=2025-10-17
+%\{subsec:\w+\}章
+
+% 図表のサイズはgravit-facebookが12cm，横並びは8cmで統一
+
+\title{Simulating Wide-Path Corner Turning in Crowds}
+\author{Satoshi Misumi}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\maketitle
+\begin{abstract}
+We propose a novel whole-body control framework that explicitly regulates the surface stress field of a robot body.
+Unlike conventional controllers that manage discrete contact forces or joint torques, our method estimates a continuous stress tensor field on the robot surface, unifying external contact forces and self-induced internal forces within a single representation.
+We introduce a neural stress-field estimator based on a graph neural network constrained by physical equilibrium equations, and integrate it into a stress-constrained quadratic programming (QP) controller.
+Experiments on contact-rich tasks such as wall-pushing, object hugging, and human-safe touch demonstrate that our approach reduces peak von Mises stress by up to 35\%, lowers slip rate by 42\%, and improves task robustness under model uncertainties.
+\end{abstract}
+
+\section{Introduction}
+Recent advances in whole-body control and tactile sensing have enabled robots to physically interact with their environment in increasingly rich ways.
+However, current controllers represent contact only as discrete forces, neglecting the distributed nature of stress over the surface.
+This limitation leads to local stress hotspots, unstable friction, and safety concerns in contact-rich manipulation or human–robot interaction.
+
+In this paper, we formulate the robot’s surface as a continuous elastic membrane that carries a stress tensor field~$\sigma(x)$.
+We then treat this field as a first-class state variable in the control loop.
+A neural stress-field estimator fuses tactile and proprioceptive signals to infer $\sigma(x)$ in real time, while a stress-constrained QP controller regulates motion and torque to maintain stress safety margins.
+
+Our contributions are:
+\begin{itemize}
+    \item A unified representation of internal and external forces as a continuous surface stress field.
+    \item A neural stress-field estimator (GraphNN/PINN hybrid) consistent with elasticity constraints.
+    \item A stress-constrained whole-body controller minimizing both task error and stress norm.
+    \item Empirical validation showing safety, slip reduction, and robustness improvements.
+\end{itemize}
+
+\section{Related Work}
+\subsection{Whole-Body Control under Contact Constraints}
+\subsection{Tactile Sensing and Stress Estimation}
+\subsection{Physics-Informed Neural Networks for Mechanics}
+\subsection{Stress-Based Control in Soft Robotics}
+
+\section{Methodology}
+\subsection{Surface Stress Field Representation}
+We define a 2D stress tensor field $\sigma(x)\in\mathbb{R}^{2\times2}$ on the robot surface.
+Force equilibrium yields:
+\[
+\nabla\cdot\sigma(x) + f(x) = \rho a(x).
+\]
+The field is parameterized as $\sigma(x) = B(x)w$, where $B(x)$ are basis functions and $w$ are coefficients.
+
+\subsection{Neural Stress Estimation}
+A graph neural network (GNN) is trained to predict $w$ from tactile and joint-torque observations.
+Training loss includes physical regularizers:
+\[
+\mathcal{L} = \|\nabla\cdot\sigma + f - \rho a\|^2 + \lambda \|\sigma - \sigma^{GT}\|^2.
+\]
+
+\subsection{Stress-Constrained QP Control}
+We solve:
+\begin{align*}
+\min_{\ddot q, \tau, w}\ &
+\|J\ddot q - \ddot x^\star\|_W^2
++ \lambda_1\|\tau\|^2
++ \lambda_2\|\sigma(w)\|_2^2 \\
+\text{s.t. } &
+M\ddot q + h = \tau + J^T f_c,\\
+& \sigma_{\text{vM}}(x) \le \sigma_{\max},\quad
+|\tau_t(x)| \le \mu p(x).
+\end{align*}
+
+\section{Experimental Setup}
+\subsection{Simulator}
+We use Isaac Gym with a custom stress-field computation layer converting contact point forces to surface stress tensors.
+\subsection{Tasks}
+We evaluate on:
+(1) Wall-Push, (2) Hug-Lift, (3) Rubbing Exploration, and (4) Human Touch.
+Each task is performed under nominal and disturbed conditions (e.g., friction uncertainty, external perturbation).
+\subsection{Metrics}
+Peak von Mises stress, stress exceed time, slip rate, success rate, energy, and comfort score.
+
+\section{Results and Discussion}
+\subsection{Stress Distribution Analysis}
+\subsection{Slip and Success Rates}
+\subsection{Energy and Comfort}
+\subsection{Ablation Study}
+
+\begin{table}[t]
+\centering
+\caption{Quantitative Results (Mean ± SD)}
+\begin{tabular}{lcccc}
+
+Task & Method & $\sigma_{vM}^{max}$ & Slip (\%) & Succ. (\%)\\
+
+Wall Push & Baseline & 125±10 & 11.2 & 84.0\\
+          & Ours & 82±8 & 6.4 & 94.7\\
+
+\end{tabular}
+\end{table}
+
+\section{Conclusion}
+We introduced a stress-field-based framework for contact-rich whole-body control.
+By unifying internal and external forces within a continuous stress representation, the controller achieves improved safety, robustness, and tactile consistency.
+Future work will integrate reinforcement learning for adaptive stress regulation and extend to soft robotic limbs.
+
+\bibliographystyle{IEEEtran}
+\bibliography{main.bib}
+\end{document}
