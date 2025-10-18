@@ -162,7 +162,46 @@ This masking, combined with fact that the output embeddings are offset by one po
 % Q. なんで512なら容易(facilitated)なのか
 % A. Transformer では、自己注意層（Self-Attention）フィードフォワード層（Feed-Forward Network, FFN）埋め込み層（Embedding）など、いろいろなサブレイヤーがありますが、これらの出力を次々に残差でつなぐため、出力ベクトルの次元をすべて統一しておく必要があります。つまり「512」は“揃えるための共通の基準"。512 でなければならない理由は理論的にはありませんが経験的に選ばれました。
 
-% Q.
+% Q. 位置ごとに独立したフィードフォワードネットワーク とは例えばLLMなら単語ごとに全結合層を入れてAdd&Normということ
+% A. その通り
+
+\subsection{Attention}
+
+An attention function can be described as mapping a query and a set of key-value pairs to an output. where the query, keys, values and output are all vectors.
+
+The output is computed  as weighted sum of the values, where the weight assinged to each value is computed by compatibility function of the query with the corresponding key.
+
+\subsubsection{Scaled Dot-Product Attention}
+% 我々はこの注意機構を 「スケールド・ドット積アテンション」（図2）と呼ぶ。
+We call our particular attention "Scaled Dot-Product Attention" (Figure 2).
+% クエリとすべてのキーの内積を計算し、それぞれを $\sqrt{d_k}$ で割り、ソフトマックス関数を適用して値に対する重みを得る。
+The input consists of queries and keys of dimension $d_k$, and values of dimension $d_v$. We compute the dot products of the query with all keys, divide each by $\sqrt{d_k}$, and apply a softmax function to obtain the weights on the values.
+
+% 実際には、複数のクエリ集合に対して同時にアテンション関数を計算し、それらを行列 $Q$、$K$、$V$ としてまとめて処理する。出力行列は次式で与えられる。
+In practice, we compute the attention function on  a set of queries simultaneously, packed together into matrices $K$ and $V$. We compute the matrix of outputs as:
+
+\begin{equation}
+\mathrm{Attention}\left(Q,K,V\right)=\mathrm{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\end{equation}
+%一般的に広く使われている2種類のアテンション関数は、加法型アテンション \cite{2} とドット積（乗法型）アテンションである。
+The two most commonly used attention functions are additive attention \cite{2}, and dot-product(multiplicative) attention.
+%ドット積アテンションは、我々のアルゴリズムと同一だが、スケーリング係数 $\frac{1}{\sqrt{d_k}}$ の有無のみが異なる。
+Dot-product attention is identical to our algorithm, except for the scaling factor of $\frac{1}{d_k}$.
+% 加法型アテンションは、1層の隠れ層をもつフィードフォワードネットワークによって、クエリとキーの適合度関数（compatibility function）を計算する。
+Additive attention computes the compatibility function using a feed-forward network with a single hidden layer.
+% 両者は理論上の計算複雑性としては類似しているが、ドット積アテンションは実装上はるかに高速かつメモリ効率に優れる。これは、高度に最適化された行列積演算として実装できるためである。
+While the two are similar in theoretical complexity, dot-product attention is much faster and more space efficient in practice, since it can be implemented using highly optimized matrix multiplication code.
+
+% $d_k$ が小さい場合には両者の性能はほぼ同等であるが、$d_k$ が大きくなると、スケーリングを行わないドット積アテンションよりも加法型アテンションの方が優れた性能を示すことが報告されている \cite{3}。
+While for small values of $d_k$ the two mechanisms perform similary, additive attention outperforms dot product attention without scaling for larger values of $d_k$\cite{3}. 
+% 我々は、$d_k$ が大きい場合にはドット積の値の絶対値が大きくなりすぎ、ソフトマックス関数が勾配の極めて小さい領域で飽和してしまうと推測する。この効果を抑えるために、ドット積を $\frac{1}{\sqrt{d_k}}$ でスケーリングしている。
+We suspect that for large values of $d_k$, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients. To counteract this effect we scale the dot products by $\sqrt{1}{d_k}$
+
+\subsubsection{Multi-Head Attention}
+
+Instead 
+
+
 
 % 写経ミスは一行ずつ修正していたら時間が足りない、原典と写本の印刷物を手元に置きながらChatGPTに全文を訂正させることで画面不足を解決する。
 \section{Conclusion}
