@@ -27,10 +27,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 
 [[package]]
-name = "neural_stress"
-version = "0.1.0"
-
-[[package]]
 name = "patent_webrender"
 version = "0.1.0"
 dependencies = [
