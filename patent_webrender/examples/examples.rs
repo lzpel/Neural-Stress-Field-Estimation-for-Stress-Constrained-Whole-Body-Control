@@ -126,8 +126,54 @@ impl Task<Resource> for NetworkTask{//エラー
 		Default::default()
 	}
 }
-fn step<T: Task<R>, R: Linear>(capacity: R,tasks: impl Iterator<Item=dyn AsRef<T>>+Clone)->Vec<(String, [Option<usize>;2])>{
-	let mut tasks:Vec<(T, [Option<usize>;2])>=tasks.map(|v| (v.as_ref().clone(), Default::default())).collect();
+#[derive(Debug, Clone)]
+enum Any{
+	Render(usize,f32),
+	Compute(usize),
+	Network(f32)
+}
+#[derive(Debug, Clone)]
+struct AnyTask{
+	any: Any,
+	inner: Target
+}
+impl HasTarget for AnyTask{
+	fn target<'a>(&'a self)->&'a Target {
+		&self.inner
+	}
+	fn target_finished(&self)->bool {
+		match self.any{
+			Any::Compute(t)=>t<=Default::default(),
+			Any::Render(t, _)=>t<=Default::default(),
+			Any::Network(v)=>v<=Default::default()
+		}
+	}
+}
+impl Task<Resource> for AnyTask{//エラー
+	fn request_resource(&self)->Resource {
+		match self.any{
+			Any::Render(_t, v)=>Resource{vram_gbytes:v as i32, ..Default::default()},
+			Any::Network(_v)=>Resource { network_gbps: 1, ..Default::default() },
+			_=>Default::default()
+		}
+	}
+	fn ready(&self, assign: &Resource)->bool {
+		match self.any{
+			Any::Render(_t, v)=>assign.vram_gbytes>v as i32,
+			_=>true,
+		}
+	}
+	fn do_1sec(&mut self, assign: &Resource)->bool {
+		match &mut self.any{
+			Any::Compute(t)=>*t-=1,
+			Any::Render(t, _)=>*t-=1,
+			Any::Network(v)=>*v-=assign.network_gbps as f32 / 8.0
+		}
+		Default::default()
+	}
+}
+fn step<T: Task<R>, R: Linear>(capacity: R,tasks: impl Iterator<Item=T>)->Vec<(String, [Option<usize>;2])>{
+	let mut tasks:Vec<(T, [Option<usize>;2])>=tasks.map(|v| (v, Default::default())).collect();
 	for i in 0..usize::MAX{
 		// 終了できるタスクは終了、全部終了していたら終わり
 		let mut end=true;
@@ -190,54 +236,42 @@ fn step<T: Task<R>, R: Linear>(capacity: R,tasks: impl Iterator<Item=dyn AsRef<T
 	}
 	tasks.into_iter().map(|(v, ab)| (v.target_name().to_string(), ab)).collect()
 }
-fn generate(faces: usize)->Vec<Box<dyn Task<Resource>>>{
+fn generate(faces: usize)->Vec<AnyTask>{
 	let mut rng = StdRng::seed_from_u64(faces as u64);
-	let mut tasks: Vec<Box<dyn Task<Resource>>> = Default::default();
+	let mut tasks: Vec<AnyTask> = Default::default();
 	let target_animation="animation".to_string();
-	tasks.push(Box::new(ComputeTask{
-		seconds: 10,
+	tasks.push(AnyTask{
+		any: Any::Compute(10),
 		inner: Target { 
 			name: target_animation.clone(), 
 			..Default::default()
 		}
-	}));
+	});
 	for i in 0..faces{
 		let target_render=format!("render{i}");
-		tasks.push(Box::new(RenderTask{
-			seconds: 100,
-			vram: Resource { 
-				vram_gbytes: 4,
-				..Default::default()
-			},
+		tasks.push(AnyTask{
+			any: Any::Render(100,4.),
 			inner: Target {
 				name: target_render.clone(),
 				deps: vec![target_animation.clone()]
 			}
-		}));
+		});
 		let target_archive=format!("archive{i}");
-		tasks.push(Box::new(RenderTask{
-			seconds: 100,
-			vram: Resource { 
-				vram_gbytes: 4,
-				..Default::default()
-			},
+		tasks.push(AnyTask{
+			any: Any::Compute(10),
 			inner: Target {
 				name: target_archive.clone(),
 				deps: vec![target_render.clone()]
 			}
-		}));
+		});
 		let target_transfer=format!("transfer{i}");
-		tasks.push(Box::new(RenderTask{
-			seconds: 100,
-			vram: Resource { 
-				vram_gbytes: 4,
-				..Default::default()
-			},
+		tasks.push(AnyTask{
+			any: Any::Network((2*1024) as f32/2500 as f32),
 			inner: Target {
 				name: target_transfer.clone(),
 				deps: vec![target_archive.clone()]
 			}
-		}));
+		});
 	}
 	tasks
 }
