@@ -1,4 +1,4 @@
-MAKE_RECURSIVE_DIRS := paper paper_my_stress paper_copy_attention
+MAKE_RECURSIVE_DIRS := paper paper_my_stress paper_copy_attention patent_webrender
 run:
 	cd overleaf-toolkit && bin/up
 generate: generate_paper
