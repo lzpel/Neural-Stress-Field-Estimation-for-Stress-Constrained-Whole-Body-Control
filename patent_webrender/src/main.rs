@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use rand::prelude::*;
 struct Job{
 	tasks: Vec<Task>
@@ -10,8 +12,7 @@ impl Job{
 			.map(|_| {
 				let seconds=rng.random_range(0..=100) ;
 				let w=match rng.random_range(0..3){
-					0=>TaskNew::NetDownloadTask(rng.random_range(0..3)),
-					1=>TaskNew::NetUploadTask(rng.random_range(0..3)),
+					1=>TaskNew::UploadTask(rng.random_range(1..3)),
 					2=>TaskNew::RenderTask(rng.random_range(0..10)),
 					_=>TaskNew::ComputeTask,
 				};
@@ -23,19 +24,48 @@ impl Job{
 		}
 	}
 }
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct Resource{
 	network_upload_gbps: usize,//Gbps
 	network_download_gbps: usize,//Gbps
 	vram_gbytes: usize,
 }
+trait AsVector: Sized {
+    type Vector;
+    fn as_vector(&self) -> Self::Vector;
+    fn from_vector(v: &Self::Vector) -> Self;
+    // このメソッドだけ「Vector = [E; N]」であることを要求
+    fn add<E: Add<Output = E> + Copy, const N: usize>(&self, rhs: &Self) -> Self
+    where
+        Self: AsVector<Vector = [E; N]>,
+    {
+        let a: [E; N] = self.as_vector();
+        let b: [E; N] = rhs.as_vector();
+        let out = std::array::from_fn(|i| a[i] + b[i]);
+        Self::from_vector(&out) // equality bound により型が一致
+    }
+}
+impl AsVector for Resource{
+	type Vector = [usize; 3];
+	fn as_vector(&self) -> Self::Vector{
+		[self.vram_gbytes, self.network_download_gbps, self.network_upload_gbps]
+	}
+	fn from_vector(x: &Self::Vector)->Self{
+		Self { network_upload_gbps: x[2], network_download_gbps: x[1], vram_gbytes: x[0] }
+	}
+}
+impl Add for Resource {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+		AsVector::add(&self, &rhs)
+    }
+}
 enum TaskNew{
 	ComputeTask,
 	RenderTask(usize),
-	NetUploadTask(usize),
-	NetDownloadTask(usize),
+	UploadTask(usize),
 }
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct Task{
 	resource: Resource,
 	name: String,
@@ -61,7 +91,7 @@ impl Task{
 					..Default::default()
 				}
 			},
-			TaskNew::NetUploadTask(i)=>{
+			TaskNew::UploadTask(i)=>{
 				Self{
 					name: "upload".to_string(),
 					seconds,
@@ -72,17 +102,6 @@ impl Task{
 					..Default::default()
 				}
 			},
-			TaskNew::NetDownloadTask(i)=>{
-				Self{
-					name: "download".to_string(),
-					seconds,
-					resource:Resource{
-						network_download_gbps:i,
-						..Default::default()
-					},
-					..Default::default()
-				}
-			}
 		}
 	}
 }
@@ -91,13 +110,14 @@ struct Server{
 }
 impl Server{
 	pub fn simulate<'a>(&self, x: impl Iterator<Item=&'a Task>){
-		let mut total=0;
-		for (i,x) in x.enumerate(){
-			println!("{i}:\t{x:?}");
-			total+=x.seconds
+		let mut v: Vec<(i32, Task)>=x.map(|v| (-1,v.clone())).collect();
+		// 時間
+		let mut t: i32=0;
+		// 現在使用中のリソースを合算
+		let used: Resource = Default::default();
+		for x in v.iter(){
+			println!("total {total}")
 		}
-		println!("total {total}")
-	}
 }
 fn main() {
 	let x=Job::new(100);
