@@ -128,6 +128,8 @@ fn step<T: Task<R>, R: Linear>(
 	tasks: impl Iterator<Item = T>,
 ) -> std::io::Result<()> {
 	let mut tasks: Vec<(T, [Option<usize>; 2])> = tasks.map(|v| (v, Default::default())).collect();
+	//リソース上限をここに書く
+	capacity.write(&mut write_res)?;
 	for t in 0..usize::MAX {
 		println!("step {t}");
 		// 終了できるタスクは終了、全部終了していたら終わり
@@ -234,16 +236,30 @@ fn generate(faces: usize) -> Vec<AnyTask> {
 	tasks
 }
 fn main() {
-	let tasks = generate(2500);
 	let out_res = std::fs::File::create("out.res.csv").unwrap();
 	let out_tas = std::fs::File::create("out.tas.csv").unwrap();
+	let (task, capacity): (Vec<AnyTask>, Resource) = match 2{
+		1=>(
+			generate(2500),
+			Resource {
+				network_gbps: 10.,
+				vram_gbytes: 48. * 8.,
+			}
+		),
+		2=>(
+			generate(100),
+			Resource{
+				network_gbps: 1.,
+				vram_gbytes: 16.
+			}
+		),
+		_ => panic!("unexpected mode"),
+	};
+	let tasks = generate(2500);
 	step(
 		out_res,
 		out_tas,
-		Resource {
-			network_gbps: 10.,
-			vram_gbytes: 48. * 8.,
-		},
+		capacity,
 		tasks.into_iter(),
 	).unwrap();
 }

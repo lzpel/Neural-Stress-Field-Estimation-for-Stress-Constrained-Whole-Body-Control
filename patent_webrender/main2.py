@@ -9,7 +9,9 @@ def title2key(title:str)->str:
 	return title[:3]
 def main(out_res, out_tas):
 	# --- 可視化 ---
-	fig, ax = plt.subplots(figsize=(8, 4))
+	fig = plt.figure()
+	ax = fig.add_subplot(212)
+	ax2 = fig.add_subplot(211, sharex=ax)
     # --- タスク名を収集してユニーク化 ---
 	title_keys = sorted(set(title2key(t[0]) for t in out_tas))
 	cmap = cm.get_cmap('tab10', len(title_keys))  # 10色パレット（必要なら Set3, tab20 もOK）
@@ -63,28 +65,27 @@ def main(out_res, out_tas):
 		mpatches.Patch(color=color_map[title2key(k)], label=k)
 		for k in ["animation", "render", "archive", "transport"]#title_keys
 	]
-	# ax.legend(handles=task_handles, title="Task")
+	ax.legend(handles=task_handles, title="Task")
 	# ===== ここから VRAM ラインを重ねる =====
 	# out_res: [[time_sec, vram_gb], ...] を想定
 	if out_res:
-		resouce = np.array([[i, *row] for i, row in enumerate(out_res)])
+		resouce = np.array([[i-1, *row] for i, row in enumerate(out_res)])
 
 		# 右 y 軸を作成（x は共有）
-		ax2 = ax.twinx()
 		ax2.plot(
-			resouce[:, 0], resouce[:, 1], label="VRAM [GB]"
+			resouce[1:, 0], resouce[1:, 1], label="GPU VRAM usage", color='tab:blue'
 		)
-		ax2.plot(
-			resouce[:, 0], resouce[:, 2], label="Ideal transfer [Gbps]"
+		ax2.axhline(y=resouce[0, 1], label="GPU VRAM capacity", linestyle='--', color='tab:blue')
+		ax2.set_ylabel("GPU VRAM [GB]")
+		ax3 = ax2.twinx()
+		ax3.plot(
+			resouce[1:, 0], resouce[1:, 2], label="Network usage", color='tab:red'
 		)
-	# 折れ線のハンドルは ax2 から取得
-	line_handles, line_labels = ax2.get_legend_handles_labels()
-	ax.legend(
-		handles=task_handles + line_handles,
-		labels=title_keys + line_labels,
-		title="Task / Resource",
-		loc="upper right"
-	)
+		ax3.axhline(y=resouce[0, 2], label="Network capacity", linestyle='--', color='tab:red')
+		ax3.set_ylabel("Network [Gbps]")
+		h2, l2 = ax2.get_legend_handles_labels()
+		h3, l3 = ax3.get_legend_handles_labels()
+		ax3.legend(h2 + h3, l2 + l3) # 'best' や 'upper left' など適切な位置を指定
 
 	plt.tight_layout()
 	plt.show()
