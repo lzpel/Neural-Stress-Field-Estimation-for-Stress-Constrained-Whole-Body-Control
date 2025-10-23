@@ -28,9 +28,6 @@ trait Task<R: Default>: HasTarget + Clone {
 	fn request_resource(&self) -> R {
 		Default::default()
 	}
-	fn ready(&self, _capacity: &R) -> bool {
-		true //タスクを投入できるか判定、必要があれば書き換え
-	}
 	fn do_1sec(&mut self, r: &R) -> bool; //finish
 }
 #[derive(Default, Debug, Clone, Copy)]
@@ -106,12 +103,6 @@ impl Task<Resource> for AnyTask {
 			_ => Default::default(),
 		}
 	}
-	fn ready(&self, assign: &Resource) -> bool {
-		match self.any {
-			Any::Render(_t, v) => assign.vram_gbytes > v,
-			_ => true,
-		}
-	}
 	fn do_1sec(&mut self, assign: &Resource) -> bool {
 		match &mut self.any {
 			Any::Compute(t) => *t -= 1,
@@ -126,6 +117,7 @@ fn step<T: Task<R>, R: Linear>(
 	mut write_tas: impl std::io::Write,
 	capacity: R,
 	tasks: impl Iterator<Item = T>,
+	strategy: impl Fn(&R, &R)->bool//budget resource, requested resource -> run(true) or pending(falce)
 ) -> std::io::Result<()> {
 	let mut tasks: Vec<(T, [Option<usize>; 2])> = tasks.map(|v| (v, Default::default())).collect();
 	//リソース上限をここに書く
@@ -159,11 +151,11 @@ fn step<T: Task<R>, R: Linear>(
 				.reduce(|a, b| a.add(&b))
 				.unwrap_or_default();
 			// 利用可能量を計算
-			let available = capacity.sub(&used);
+			let budget = capacity.sub(&used);
 			// 投入できるなら投
 			for (i, (v, [a, b])) in tasks.iter().enumerate() {
 				if [a.is_some(), b.is_some()] == [false, false] {
-					if v.target_ready(tasks.iter().map(|(v, _)| v)) && v.ready(&available) {
+					if v.target_ready(tasks.iter().map(|(v, _)| v)) && strategy(&budget, &v.request_resource()) {
 						tasks[i].1 = [Some(t), None];
 						changed = true;
 						break;
@@ -247,7 +239,7 @@ fn main() {
 			}
 		),
 		2=>(
-			generate(100),
+			generate(20),
 			Resource{
 				network_gbps: 1.,
 				vram_gbytes: 16.
@@ -255,11 +247,17 @@ fn main() {
 		),
 		_ => panic!("unexpected mode"),
 	};
-	let tasks = generate(2500);
+	let fool_strategy=|budget: &Resource, request: &Resource|->bool{
+		budget.vram_gbytes>=request.vram_gbytes
+	};
+	let smart_strategy=|budget: &Resource, request: &Resource|->bool{
+		budget.vram_gbytes>=request.vram_gbytes && budget.network_gbps>=request.network_gbps
+	};
 	step(
 		out_res,
 		out_tas,
 		capacity,
-		tasks.into_iter(),
+		task.into_iter(),
+		smart_strategy,
 	).unwrap();
 }

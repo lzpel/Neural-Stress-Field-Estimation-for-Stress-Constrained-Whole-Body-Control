@@ -8,12 +8,13 @@ import numpy as np
 def title2key(title:str)->str:
 	return title[:3]
 def main(out_res, out_tas):
+	labels=["animation", "render", "archive", "transport"]
 	# --- 可視化 ---
 	fig = plt.figure()
 	ax = fig.add_subplot(212)
 	ax2 = fig.add_subplot(211, sharex=ax)
     # --- タスク名を収集してユニーク化 ---
-	title_keys = sorted(set(title2key(t[0]) for t in out_tas))
+	title_keys = sorted(set(title2key(t) for t in [i[0] for i in out_tas] + labels))
 	cmap = cm.get_cmap('tab10', len(title_keys))  # 10色パレット（必要なら Set3, tab20 もOK）
 	color_map = {t: cmap(i) for i, t in enumerate(title_keys)}
 	# task=[title, start_time, end_time, rank(このrankを追加する部分)] 同じrankにタスクが重複しないように貪欲に詰め合わせる
@@ -22,7 +23,7 @@ def main(out_res, out_tas):
 	free   = []  # 再利用可能な rank を小さい順に保持
 	next_rank = 0
 
-	for task in out_tas:
+	for task in sorted(out_tas, key=lambda x: x[1]):
 		s, e = task[1], task[2]
 
 		# 終了済みタスクを解放（end <= s を「非重複」とみなす場合）
@@ -52,18 +53,18 @@ def main(out_res, out_tas):
 			height=0.4, 
 			align='center', 
 			color=color_map[title2key(title)], 
-			#edgecolor='black'
+			edgecolor='black'
 		)
 		# ax.text(start, y, title, va='center')
 
 	# --- 軸設定 ---
 	ax.set_yticks([])
 	ax.set_xlabel("Time [s]")
-	ax.set_title("Server Task Timeline (Overlap Visualization)")
+	ax.set_title("Server Task Timeline")
 	# ---凡例---
 	task_handles = [
 		mpatches.Patch(color=color_map[title2key(k)], label=k)
-		for k in ["animation", "render", "archive", "transport"]#title_keys
+		for k in labels
 	]
 	ax.legend(handles=task_handles, title="Task")
 	# ===== ここから VRAM ラインを重ねる =====
@@ -72,6 +73,7 @@ def main(out_res, out_tas):
 		resouce = np.array([[i-1, *row] for i, row in enumerate(out_res)])
 
 		# 右 y 軸を作成（x は共有）
+		ax2.set_title("Server Resource Timeline")
 		ax2.plot(
 			resouce[1:, 0], resouce[1:, 1], label="GPU VRAM usage", color='tab:blue'
 		)
