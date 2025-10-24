@@ -4,3 +4,5 @@ generate:
 	unzip -o out.zip -d ./assets
 run:
 	cargo run
+run-gltf:
+	cargo run --example gltf
