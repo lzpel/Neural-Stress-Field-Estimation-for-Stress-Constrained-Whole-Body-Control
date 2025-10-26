@@ -1,4 +1,8 @@
-use std::{cmp::Ordering, fmt::Debug, ops::{Add, Div, Mul, Sub}};
+use std::{
+	cmp::Ordering,
+	fmt::Debug,
+	ops::{Add, Div, Mul, Sub},
+};
 
 #[derive(Default, Debug, Clone)]
 struct Target {
@@ -51,7 +55,7 @@ trait Linear: Sized + Default + Debug {
 	fn sub(&self, rhs: &Self) -> Self {
 		self.line(&rhs, |a, b| a - b)
 	}
-	fn write(&self, w: &mut impl std::io::Write)->std::io::Result<()>;
+	fn write(&self, w: &mut impl std::io::Write) -> std::io::Result<()>;
 }
 impl Linear for Resource {
 	type V = f32;
@@ -61,7 +65,7 @@ impl Linear for Resource {
 			network_gbps: f(self.network_gbps, rhs.network_gbps),
 		}
 	}
-	fn write(&self, w: &mut impl std::io::Write) ->std::io::Result<()>{
+	fn write(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
 		writeln!(w, "{} {}", self.vram_gbytes, self.network_gbps)
 	}
 }
@@ -117,7 +121,7 @@ fn step<T: Task<R>, R: Linear>(
 	mut write_tas: impl std::io::Write,
 	capacity: R,
 	tasks: impl Iterator<Item = T>,
-	strategy: impl Fn(&R, &R)->bool//budget resource, requested resource -> run(true) or pending(falce)
+	strategy: impl Fn(&R, &R) -> bool, //budget resource, requested resource -> run(true) or pending(falce)
 ) -> std::io::Result<()> {
 	let mut tasks: Vec<(T, [Option<usize>; 2])> = tasks.map(|v| (v, Default::default())).collect();
 	//リソース上限をここに書く
@@ -130,7 +134,13 @@ fn step<T: Task<R>, R: Linear>(
 			if [a.is_some(), b.is_some()] == [true, false] {
 				if v.target_finished() {
 					*b = Some(t);
-					writeln!(write_tas, "{} {} {}", v.target_name(), a.unwrap(), b.unwrap())?;
+					writeln!(
+						write_tas,
+						"{} {} {}",
+						v.target_name(),
+						a.unwrap(),
+						b.unwrap()
+					)?;
 				}
 			}
 			if b.is_none() {
@@ -155,7 +165,9 @@ fn step<T: Task<R>, R: Linear>(
 			// 投入できるなら投
 			for (i, (v, [a, b])) in tasks.iter().enumerate() {
 				if [a.is_some(), b.is_some()] == [false, false] {
-					if v.target_ready(tasks.iter().map(|(v, _)| v)) && strategy(&budget, &v.request_resource()) {
+					if v.target_ready(tasks.iter().map(|(v, _)| v))
+						&& strategy(&budget, &v.request_resource())
+					{
 						tasks[i].1 = [Some(t), None];
 						changed = true;
 						break;
@@ -173,11 +185,17 @@ fn step<T: Task<R>, R: Linear>(
 			.reduce(|a, b| a.add(&b))
 			.unwrap_or_default();
 		//超過分
-		let one: <R as Linear>::V=match (1.).try_into(){
-			Ok(v)=>v,
-			Err(_)=>panic!()
+		let one: <R as Linear>::V = match (1.).try_into() {
+			Ok(v) => v,
+			Err(_) => panic!(),
 		};
-		let rate = used.line(&capacity, |a, b| if b!=Default::default() && a.partial_cmp(&b)==Some(Ordering::Greater) {a / b}else{one});
+		let rate = used.line(&capacity, |a, b| {
+			if b != Default::default() && a.partial_cmp(&b) == Some(Ordering::Greater) {
+				a / b
+			} else {
+				one
+			}
+		});
 		used.write(&mut write_res)?;
 		// 超過分を割り引いて渡しながらdo_1sec
 		for (v, [a, b]) in &mut tasks {
@@ -230,34 +248,28 @@ fn generate(faces: usize) -> Vec<AnyTask> {
 fn main() {
 	let out_res = std::fs::File::create("out.res.csv").unwrap();
 	let out_tas = std::fs::File::create("out.tas.csv").unwrap();
-	let (task, capacity): (Vec<AnyTask>, Resource) = match 2{
-		1=>(
+	let (task, capacity): (Vec<AnyTask>, Resource) = match 2 {
+		1 => (
 			generate(2500),
 			Resource {
 				network_gbps: 10.,
 				vram_gbytes: 48. * 8.,
-			}
+			},
 		),
-		2=>(
+		2 => (
 			generate(20),
-			Resource{
+			Resource {
 				network_gbps: 1.,
-				vram_gbytes: 16.
-			}
+				vram_gbytes: 16.,
+			},
 		),
 		_ => panic!("unexpected mode"),
 	};
-	let fool_strategy=|budget: &Resource, request: &Resource|->bool{
-		budget.vram_gbytes>=request.vram_gbytes
+	let fool_strategy = |budget: &Resource, request: &Resource| -> bool {
+		budget.vram_gbytes >= request.vram_gbytes
 	};
-	let smart_strategy=|budget: &Resource, request: &Resource|->bool{
-		budget.vram_gbytes>=request.vram_gbytes && budget.network_gbps>=request.network_gbps
+	let smart_strategy = |budget: &Resource, request: &Resource| -> bool {
+		budget.vram_gbytes >= request.vram_gbytes && budget.network_gbps >= request.network_gbps
 	};
-	step(
-		out_res,
-		out_tas,
-		capacity,
-		task.into_iter(),
-		smart_strategy,
-	).unwrap();
+	step(out_res, out_tas, capacity, task.into_iter(), smart_strategy).unwrap();
 }
