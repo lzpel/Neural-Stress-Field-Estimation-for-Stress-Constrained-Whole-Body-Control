@@ -1,0 +1,18 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[[source]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+verify_ssl = true
+
+[packages]
+torch = {version="*", index="pytorch-cu130"}
+torchvision = {version="*", index="pytorch-cu130"}
+
+[dev-packages]
+
+[requires]
+python_version = "3.13"
