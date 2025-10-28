@@ -250,35 +250,3 @@ def test_encoder_decoder_roundtrip_shapes():
 	エンコーダ出力 (z) の形状 (潜在空間): torch.Size([1, 48, 32, 32])
 	デコーダ出力 (y) の形状 (再構築画像): torch.Size([1, 3, 64, 64])
 	"""
-	
-
-def test_multiscale_roundtrip():
-	B, H, W = 1, 128, 128
-	z_channels = 32
-	ch_mult = (1, 2, 4)  # downsample 2x2x2 = 1/8
-
-	# 共通コードブックを想定した Encoder/Decoder
-	enc = Encoder(ch=64, ch_mult=ch_mult, num_res_blocks=1,
-				  dropout=0.0, in_channels=3, z_channels=z_channels,
-				  double_z=False, using_sa=True, using_mid_sa=True)
-	dec = Decoder(ch=64, ch_mult=ch_mult, num_res_blocks=1,
-				  dropout=0.0, in_channels=3, z_channels=z_channels,
-				  using_sa=True, using_mid_sa=True)
-
-	x = torch.randn(B, 3, H, W)
-
-	# === scale 0 ===
-	z1 = enc(x)
-	print(f"Scale 1 latent: {z1.shape}")   # e.g. (1, 32, 16, 16)
-
-	# === scale 1 ===
-	z2 = enc(z1)
-	print(f"Scale 2 latent: {z2.shape}")   # e.g. (1, 32, 8, 8)
-
-	# === decode back ===
-	y1 = dec(z2)
-	print(f"Decoded coarse scale: {y1.shape}")  # (1, 3, 16, 16)
-	y2 = dec(y1)
-	print(f"Decoded fine scale: {y2.shape}")	# (1, 3, 128, 128)
-
-	assert y2.shape == x.shape

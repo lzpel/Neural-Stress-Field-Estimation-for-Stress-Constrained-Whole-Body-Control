@@ -12,6 +12,7 @@ verify_ssl = true
 torch = {version="*", index="pytorch-cu130"}
 torchvision = {version="*", index="pytorch-cu130"}
 pytest = {version="*"}
+Pillow = {version="*"}
 
 [dev-packages]
 
