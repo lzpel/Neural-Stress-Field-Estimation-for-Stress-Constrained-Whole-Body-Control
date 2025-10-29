@@ -250,3 +250,122 @@ def test_encoder_decoder_roundtrip_shapes():
 	エンコーダ出力 (z) の形状 (潜在空間): torch.Size([1, 48, 32, 32])
 	デコーダ出力 (y) の形状 (再構築画像): torch.Size([1, 3, 64, 64])
 	"""
+@pytest.mark.parametrize("train_tar_gz, test_tar_gz", [("./out/n02107312.tar.gz", "./out/n02704792.tar.gz")])
+def test_learning(train_tar_gz, test_tar_gz):
+	# train_tar_gz jpg画像がたくさん入っているtarへのパス
+	# test_tar_gz jpg画像がたくさん入っているtarへのパス
+	# エンコーダーデコーダーで元の画像に戻すというタスクを学習してください
+	import io, tarfile, random
+	from PIL import Image
+	from torch.utils.data import Dataset, DataLoader
+
+	torch.manual_seed(0)
+	random.seed(0)
+	IMG_SIZE = 64
+	MAX_TRAIN_IMAGES = 256
+	MAX_TEST_IMAGES = 64
+	BATCH_SIZE = 16
+	EPOCHS = 1
+	MAX_STEPS = 200		  # 学習ステップ上限（早めに終わる）
+	LR = 1e-3
+	Z_CH = 48
+	CH_MULT = (1, 2)		 # 64 -> 32（downsample x2）
+	DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+	print({"DEVICE": DEVICE})
+
+	def _pil_to_tensor(img: Image.Image) -> torch.Tensor:
+		img = img.convert("RGB").resize((IMG_SIZE, IMG_SIZE), Image.BICUBIC)
+		x = torch.from_numpy(
+			(torch.ByteTensor(torch.ByteStorage.from_buffer(img.tobytes()))
+			 .view(IMG_SIZE, IMG_SIZE, 3)
+			 .numpy())
+		).float() / 255.0
+		# (H,W,3) -> (3,H,W)
+		return x.permute(2, 0, 1).contiguous()
+
+	class TarImageDataset(Dataset):
+		def __init__(self, tar_path, max_images):
+			self.samples = []
+			with tarfile.open(tar_path, "r:*") as tf:
+				members = [m for m in tf.getmembers()
+						   if m.isfile() and any(m.name.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png"))]
+				# 安定性のため固定順＆最大数を制限
+				members = sorted(members, key=lambda m: m.name)[:max_images]
+				for m in members:
+					with tf.extractfile(m) as f:
+						if f is None:
+							continue
+						try:
+							img = Image.open(io.BytesIO(f.read()))
+							self.samples.append(_pil_to_tensor(img))
+						except Exception:
+							# 壊れた画像はスキップ
+							continue
+			if len(self.samples) == 0:
+				raise RuntimeError(f"No images found in {tar_path}")
+
+		def __len__(self):
+			return len(self.samples)
+
+		def __getitem__(self, idx):
+			x = self.samples[idx]
+			return x
+
+	train_ds = TarImageDataset(train_tar_gz, MAX_TRAIN_IMAGES)
+	test_ds  = TarImageDataset(test_tar_gz,  MAX_TEST_IMAGES)
+	train_dl = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+	test_dl  = DataLoader(test_ds,  batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
+
+	# モデル作成（Encoder/Decoderは上で定義済みのクラスを使用）
+	enc = Encoder(ch=64, ch_mult=CH_MULT, num_res_blocks=1, dropout=0.0,
+				  in_channels=3, z_channels=Z_CH, double_z=False,
+				  using_sa=True, using_mid_sa=True).to(DEVICE)
+	dec = Decoder(ch=64, ch_mult=CH_MULT, num_res_blocks=1, dropout=0.0,
+				  in_channels=3, z_channels=Z_CH,
+				  using_sa=True, using_mid_sa=True).to(DEVICE)
+
+	opt = torch.optim.Adam(list(enc.parameters()) + list(dec.parameters()), lr=LR)
+
+	def eval_loss(dataloader) -> float:
+		enc.eval(); dec.eval()
+		total, count = 0.0, 0
+		with torch.no_grad():
+			for x in dataloader:
+				x = x.to(DEVICE)
+				z = enc(x)
+				y = dec(z)
+				loss = F.l1_loss(y, x, reduction="mean")
+				bs = x.size(0)
+				total += loss.item() * bs
+				count += bs
+		return total / max(1, count)
+
+	# 学習前のテスト損失
+	test_before = eval_loss(test_dl)
+
+	# 学習ループ（早めに切り上げる）
+	enc.train(); dec.train()
+	steps = 0
+	for _ in range(EPOCHS):
+		for x in train_dl:
+			x = x.to(DEVICE)
+			z = enc(x)
+			y = dec(z)
+			loss = F.l1_loss(y, x, reduction="mean")
+			opt.zero_grad(set_to_none=True)
+			loss.backward()
+			opt.step()
+
+			steps += 1
+			if steps >= MAX_STEPS:
+				break
+		if steps >= MAX_STEPS:
+			break
+
+	# 学習後のテスト損失
+	test_after = eval_loss(test_dl)
+
+	print(f"\n[VAE training] test L1 before: {test_before:.4f}  after: {test_after:.4f}")
+
+	# 改善の検証（緩めの基準と絶対値の保険）
+	assert (test_after < test_before) or (test_after < 0.05), f"reconstruction did not improve enough: before={test_before:.4f}, after={test_after:.4f}"
