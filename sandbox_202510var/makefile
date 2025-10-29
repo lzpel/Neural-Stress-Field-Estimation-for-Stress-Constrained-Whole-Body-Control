@@ -5,3 +5,5 @@ generate:
 	cd out && curl -O https://storage.googleapis.com/lzpelshare/imagenet/n02704792.tar.gz
 test:
 	pipenv run pytest cuda_test.py basic_vae.py -s
+clean:
+	pipenv --rm
