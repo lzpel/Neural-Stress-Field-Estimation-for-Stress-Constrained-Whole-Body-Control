@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytest
+import torchinfo
 
 # this file only provides the 2 modules used in VQVAE
 __all__ = ['Encoder', 'Decoder',]
@@ -242,6 +243,9 @@ def test_encoder_decoder_roundtrip_shapes():
 	print(f"エンコーダ出力 (z) の形状 (潜在空間): {z.shape}")
 	# VQ を挟まない “連続版” の往復（本来はここで量子化する）
 	y = dec(z)
+	for scale in range(1,4):
+		torchinfo.summary(enc, input_size=(1, 3, 64*scale, 64*scale))
+		torchinfo.summary(dec, input_size=(1, z_channels, 64*scale, 64*scale))
 	print(f"デコーダ出力 (y) の形状 (再構築画像): {y.shape}")
 	assert y.shape == x.shape
 	"""

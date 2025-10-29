@@ -1,3 +1,8 @@
+# basic tools
+
+[requires]
+python_version = "3.13"
+
 [[source]]
 name = "pypi"
 url = "https://pypi.org/simple"
@@ -11,10 +16,11 @@ verify_ssl = true
 [packages]
 torch = {version="*", index="pytorch-cu126"}
 torchvision = {version="*", index="pytorch-cu126"}
+torchinfo = {version="*"}
 pytest = {version="*"}
+
+# used tools
+
 Pillow = {version="*"}
 
 [dev-packages]
-
-[requires]
-python_version = "3.13"
